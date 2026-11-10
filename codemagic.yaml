@@ -1,0 +1,53 @@
+workflows:
+  lone-releaser-android:
+    name: LoneReleaser Android Release
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    environment:
+      groups:
+        - keystore_credentials  # optional: for signed builds
+      flutter: stable
+      java: 17
+    
+    scripts:
+      # Step 1: Ensure Android platform exists
+      - name: Create Android platform if missing
+        script: |
+          if [ ! -d "android" ]; then
+            flutter create --platforms android .
+          fi
+
+      # Step 2: Inject INTERNET permission into AndroidManifest.xml
+      - name: Ensure INTERNET permission in AndroidManifest
+        script: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
+            sed -i '' '/<manifest/a\
+            <uses-permission android:name="android.permission.INTERNET" />' "$MANIFEST"
+            echo "✅ INTERNET permission injected."
+          else
+            echo "✅ INTERNET permission already present."
+          fi
+
+      # Step 3: Get dependencies
+      - name: Install dependencies
+        script: flutter pub get
+
+      # Step 4: Analyze code
+      - name: Static analysis
+        script: flutter analyze --no-fatal-infos || true
+
+      # Step 5: Build release APK
+      - name: Build release APK
+        script: flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
+
+    publishing:
+      email:
+        recipients:
+          - worcluomessi@gmail.com
+        notify:
+          success: true
+          failure: true
